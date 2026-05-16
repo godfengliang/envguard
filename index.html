@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EnvGuard — Scan Code for Leaked Secrets</title>
+<meta name="description" content="Free browser-based secrets scanner. Paste code or drag files to find API keys, tokens, passwords, and private keys. No upload, works offline.">
+<meta name="keywords" content="secrets scanner, API key detector, credential leak, security tool, pre-commit check, git secrets">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://envguard.surge.sh/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="EnvGuard — Scan Code for Leaked Secrets">
+<meta property="og:description" content="Find leaked API keys, tokens, and passwords in your code before you commit. Free, no upload, works offline.">
+<meta property="og:url" content="https://envguard.surge.sh/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="EnvGuard — Scan Code for Leaked Secrets">
+<meta name="twitter:description" content="Find leaked API keys, tokens, and passwords in your code. Free, works in browser.">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"EnvGuard","applicationCategory":"DeveloperApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Free browser-based code secrets scanner."}</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;background:#0a0a0a;color:#e5e5e5;height:100vh;display:flex;flex-direction:column}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111;border-bottom:1px solid #222}
+header h1{font-size:16px;font-weight:700;color:#22c55e;letter-spacing:-0.5px}
+header h1 span{color:#666;font-weight:400;font-size:13px;margin-left:8px}
+.header-actions{display:flex;gap:8px}
+.btn{background:#1a1a1a;border:1px solid #333;color:#e5e5e5;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;transition:all .15s}
+.btn:hover{border-color:#555;background:#222}
+.btn-primary{background:#166534;border-color:#22c55e;color:#22c55e}
+.btn-primary:hover{background:#15803d}
+main{flex:1;display:flex;overflow:hidden}
+.editor-pane{flex:1;display:flex;flex-direction:column;border-right:1px solid #222}
+.editor-pane textarea{flex:1;background:#0a0a0a;color:#d4d4d4;border:none;padding:16px;font-size:13px;font-family:inherit;resize:none;line-height:1.6;outline:none;tab-size:2}
+.pane-header{padding:8px 16px;background:#111;border-bottom:1px solid #222;font-size:11px;color:#888;display:flex;justify-content:space-between;align-items:center}
+.results-pane{width:45%;display:flex;flex-direction:column;overflow-y:auto}
+.results-pane.empty{align-items:center;justify-content:center}
+.finding{padding:10px 16px;border-bottom:1px solid #1a1a1a;cursor:pointer;transition:background .1s}
+.finding:hover{background:#1a1a1a}
+.finding .finding-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.finding .severity{font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;text-transform:uppercase}
+.severity.critical{background:#7f1d1d;color:#fca5a5}
+.severity.high{background:#78350f;color:#fcd34d}
+.severity.medium{background:#1e3a5f;color:#93c5fd}
+.severity.low{background:#1a1a1a;color:#a3a3a3}
+.finding .type{font-size:12px;color:#e5e5e5;font-weight:600}
+.finding .line-info{font-size:11px;color:#666}
+.finding .match{font-size:12px;color:#888;margin-top:4px;word-break:break-all;font-family:inherit}
+.finding .match mark{background:#7f1d1d;color:#fca5a5;padding:1px 3px;border-radius:2px}
+.empty-state{text-align:center;color:#555}
+.empty-state .icon{font-size:48px;margin-bottom:12px;opacity:.5}
+.empty-state h2{font-size:16px;margin-bottom:4px;color:#888}
+.empty-state p{font-size:12px}
+.stat-bar{display:flex;gap:16px;padding:8px 16px;background:#111;border-top:1px solid #222;font-size:11px;color:#666}
+.stat-bar .stat-val{color:#e5e5e5;font-weight:600}
+.stat-bar .crit{color:#ef4444}
+.stat-bar .high{color:#f59e0b}
+.stat-bar .med{color:#3b82f6}
+.stat-bar .low{color:#737373}
+.drop-overlay{position:fixed;inset:0;background:rgba(34,197,94,.1);border:3px dashed #22c55e;display:none;align-items:center;justify-content:center;z-index:999;font-size:24px;color:#22c55e;font-weight:700}
+.drop-overlay.active{display:flex}
+</style>
+</head>
+<body>
+<header>
+  <h1>EnvGuard <span>Secrets Scanner</span></h1>
+  <div class="header-actions">
+    <button class="btn" id="btnSample">Load Sample</button>
+    <button class="btn" id="btnClear">Clear</button>
+    <button class="btn-primary btn" id="btnScan">Scan Code</button>
+  </div>
+</header>
+<main>
+  <div class="editor-pane">
+    <div class="pane-header">
+      <span>Paste code or drag files here</span>
+      <span id="charCount">0 chars</span>
+    </div>
+    <textarea id="codeInput" placeholder="Paste your code here, or drag & drop files...
+
+EnvGuard will scan for:
+  - AWS keys, tokens, secrets
+  - GitHub / GitLab tokens
+  - Google API keys, OAuth tokens
+  - Private keys (RSA, SSH, PGP)
+  - Database connection strings
+  - Generic passwords and secrets
+  - Slack, Stripe, Twilio tokens
+  - JWTs, Heroku keys, and more
+
+All scanning happens in your browser. Nothing is uploaded."></textarea>
+  </div>
+  <div class="results-pane empty" id="resultsPane">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">🔒</div>
+      <h2>No secrets found yet</h2>
+      <p>Paste code and click Scan (or press Ctrl+Enter)</p>
+    </div>
+    <div id="findings" style="display:none"></div>
+  </div>
+</main>
+<div class="stat-bar" id="statBar" style="display:none">
+  <span>Total: <span class="stat-val" id="statTotal">0</span></span>
+  <span>Critical: <span class="stat-val crit" id="statCrit">0</span></span>
+  <span>High: <span class="stat-val high" id="statHigh">0</span></span>
+  <span>Medium: <span class="stat-val med" id="statMed">0</span></span>
+  <span>Low: <span class="stat-val low" id="statLow">0</span></span>
+  <span style="margin-left:auto">Lines scanned: <span class="stat-val" id="statLines">0</span></span>
+</div>
+<div class="drop-overlay" id="dropOverlay">Drop file to scan</div>
+
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const codeInput = $('codeInput');
+const resultsPane = $('resultsPane');
+const findings = $('findings');
+const emptyState = $('emptyState');
+
+// Secret patterns
+const RULES = [
+  // AWS
+  {name:"AWS Access Key ID",pattern:/AKIA[0-9A-Z]{16}/g,severity:"critical",id:"aws-key"},
+  {name:"AWS Secret Access Key",pattern:/(?i)aws[_\-]?secret[_\-]?access[_\-]?key\s*[=:]\s*[A-Za-z0-9/+=]{40}/g,severity:"critical",id:"aws-secret"},
+  // GitHub
+  {name:"GitHub Token",pattern:/gh[ps]_[A-Za-z0-9_]{36,}/g,severity:"critical",id:"github-token"},
+  {name:"GitHub OAuth",pattern:/gho_[A-Za-z0-9]{36}/g,severity:"critical",id:"github-oauth"},
+  {name:"GitHub User-to-Server",pattern:/ghu_[A-Za-z0-9]{36}/g,severity:"critical",id:"github-u2s"},
+  {name:"GitHub Server-to-Server",pattern:/ghs_[A-Za-z0-9]{36}/g,severity:"critical",id:"github-s2s"},
+  {name:"GitHub Refresh Token",pattern:/ghr_[A-Za-z0-9]{36}/g,severity:"critical",id:"github-refresh"},
+  // GitLab
+  {name:"GitLab Token",pattern:/glpat-[A-Za-z0-9\-]{20}/g,severity:"critical",id:"gitlab-token"},
+  // Google
+  {name:"Google API Key",pattern:/AIza[0-9A-Za-z\-_]{35}/g,severity:"high",id:"google-api"},
+  {name:"Google OAuth Token",pattern:/ya29\.[0-9A-Za-z\-_]+/g,severity:"high",id:"google-oauth"},
+  {name:"Firebase Key",pattern:/(?i)firebase[_\-]?key\s*[=:]\s*['\"][A-Za-z0-9\-_]{30,}['\"]/g,severity:"high",id:"firebase"},
+  // Stripe
+  {name:"Stripe Secret Key",pattern:/sk_live_[0-9a-zA-Z]{24,}/g,severity:"critical",id:"stripe-secret"},
+  {name:"Stripe Publishable Key",pattern:/pk_live_[0-9a-zA-Z]{24,}/g,severity:"medium",id:"stripe-pub"},
+  // Slack
+  {name:"Slack Token",pattern:/xox[baprs]-[0-9a-zA-Z\-]{10,}/g,severity:"critical",id:"slack-token"},
+  {name:"Slack Webhook",pattern:/https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[a-zA-Z0-9]+/g,severity:"high",id:"slack-webhook"},
+  // Twilio
+  {name:"Twilio Account SID",pattern:/AC[a-z0-9]{32}/g,severity:"high",id:"twilio-sid"},
+  {name:"Twilio Auth Token",pattern:/(?i)twilio[_\-]?auth[_\-]?token\s*[=:]\s*['\"][a-f0-9]{32}['\"]/g,severity:"critical",id:"twilio-auth"},
+  // Private keys
+  {name:"RSA Private Key",pattern:/-----BEGIN RSA PRIVATE KEY-----/g,severity:"critical",id:"rsa-key"},
+  {name:"SSH Private Key",pattern:/-----BEGIN OPENSSH PRIVATE KEY-----/g,severity:"critical",id:"ssh-key"},
+  {name:"PGP Private Key",pattern:/-----BEGIN PGP PRIVATE KEY BLOCK-----/g,severity:"critical",id:"pgp-key"},
+  {name:"EC Private Key",pattern:/-----BEGIN EC PRIVATE KEY-----/g,severity:"critical",id:"ec-key"},
+  {name:"Generic Private Key",pattern:/-----BEGIN (?:DSA |EC )?PRIVATE KEY-----/g,severity:"critical",id:"priv-key"},
+  // Database
+  {name:"Database URL",pattern:/(?i)(?:postgres|mysql|mongo|redis|mssql|sqlite)(?:ql)?://[^\s'"]+/g,severity:"critical",id:"db-url"},
+  {name:"MongoDB Connection",pattern:/mongodb(\+srv)?://[^\s'"]+/g,severity:"critical",id:"mongo-url"},
+  // Generic
+  {name:"Password in Variable",pattern:/(?i)(?:password|passwd|pwd)\s*[=:]\s*['"][^'"]{4,}['"]/g,severity:"high",id:"password"},
+  {name:"Secret in Variable",pattern:/(?i)(?:secret|token|api[_\-]?key)\s*[=:]\s*['"][A-Za-z0-9\-_\.]{16,}['"]/g,severity:"high",id:"secret-var"},
+  {name:"Authorization Header",pattern:/(?i)authorization\s*[=:]\s*['\"](?:bearer|basic|token)\s+[A-Za-z0-9\-_\.]+['\"]/g,severity:"high",id:"auth-header"},
+  // JWT
+  {name:"JSON Web Token",pattern:/eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+/g,severity:"medium",id:"jwt"},
+  // Heroku
+  {name:"Heroku API Key",pattern:/(?i)heroku[_\-]?api[_\-]?key\s*[=:]\s*['\"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]/g,severity:"high",id:"heroku"},
+  // .env pattern
+  {name:".env Assignment",pattern:/(?i)^[A-Z_]{3,}\s*=\s*['"]?[^'"\s#]{8,}['"]?$/gm,severity:"low",id:"env-var"},
+  // SendGrid
+  {name:"SendGrid API Key",pattern:/SG\.[A-Za-z0-9\-_]{22}\.[A-Za-z0-9\-_]{43}/g,severity:"critical",id:"sendgrid"},
+  // Mailgun
+  {name:"Mailgun API Key",pattern:/key-[0-9a-zA-Z]{32}/g,severity:"high",id:"mailgun"},
+  // npm
+  {name:"npm Token",pattern:/npm_[A-Za-z0-9]{36}/g,severity:"critical",id:"npm-token"},
+  // Docker
+  {name:"Docker Hub Token",pattern:/(?i)docker[_\-]?token\s*[=:]\s*['\"][A-Za-z0-9\-_\.]{20,}['\"]/g,severity:"high",id:"docker"},
+];
+
+function scan(code) {
+  const lines = code.split('\n');
+  const results = [];
+  const seen = new Set();
+
+  for (const rule of RULES) {
+    rule.pattern.lastIndex = 0;
+    let match;
+    while ((match = rule.pattern.exec(code)) !== null) {
+      const key = `${rule.id}:${match.index}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      // Find line number
+      let lineNum = 1;
+      for (let i = 0; i < match.index; i++) {
+        if (code[i] === '\n') lineNum++;
+      }
+
+      const line = lines[lineNum - 1] || '';
+      const truncated = line.length > 120 ? line.substring(0, 120) + '...' : line;
+      const highlighted = truncated.replace(
+        match[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        `<mark>${match[0]}</mark>`
+      );
+
+      results.push({
+        name: rule.name,
+        severity: rule.severity,
+        line: lineNum,
+        match: match[0].length > 80 ? match[0].substring(0, 80) + '...' : match[0],
+        context: highlighted,
+        id: rule.id
+      });
+    }
+  }
+
+  results.sort((a, b) => {
+    const order = {critical:0, high:1, medium:2, low:3};
+    return order[a.severity] - order[b.severity] || a.line - b.line;
+  });
+
+  return results;
+}
+
+function renderResults(results) {
+  if (results.length === 0) {
+    resultsPane.classList.add('empty');
+    emptyState.innerHTML = '<div class="icon">✅</div><h2>No secrets found!</h2><p>Your code looks clean.</p>';
+    emptyState.style.display = '';
+    findings.style.display = 'none';
+    $('statBar').style.display = 'none';
+    return;
+  }
+
+  resultsPane.classList.remove('empty');
+  emptyState.style.display = 'none';
+  findings.style.display = '';
+  $('statBar').style.display = '';
+
+  const counts = {critical:0, high:0, medium:0, low:0};
+  results.forEach(r => counts[r.severity]++);
+
+  $('statTotal').textContent = results.length;
+  $('statCrit').textContent = counts.critical;
+  $('statHigh').textContent = counts.high;
+  $('statMed').textContent = counts.medium;
+  $('statLow').textContent = counts.low;
+  $('statLines').textContent = codeInput.value.split('\n').length;
+
+  findings.innerHTML = results.map(r => `
+    <div class="finding" data-line="${r.line}">
+      <div class="finding-head">
+        <span class="severity ${r.severity}">${r.severity}</span>
+        <span class="type">${r.name}</span>
+        <span class="line-info">Line ${r.line}</span>
+      </div>
+      <div class="match">${r.context}</div>
+    </div>
+  `).join('');
+
+  // Click to jump to line
+  findings.querySelectorAll('.finding').forEach(el => {
+    el.addEventListener('click', () => {
+      const line = parseInt(el.dataset.line);
+      const lines = codeInput.value.split('\n');
+      let pos = 0;
+      for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+      codeInput.focus();
+      codeInput.setSelectionRange(pos, pos + (lines[line-1]||'').length);
+    });
+  });
+}
+
+// Scan button
+$('btnScan').addEventListener('click', () => {
+  const code = codeInput.value;
+  if (!code.trim()) return;
+  const results = scan(code);
+  renderResults(results);
+});
+
+// Keyboard shortcut
+codeInput.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault();
+    $('btnScan').click();
+  }
+});
+
+// Auto-scan on paste
+codeInput.addEventListener('paste', () => {
+  setTimeout(() => {
+    $('charCount').textContent = codeInput.value.length + ' chars';
+    $('btnScan').click();
+  }, 100);
+});
+
+codeInput.addEventListener('input', () => {
+  $('charCount').textContent = codeInput.value.length + ' chars';
+});
+
+// Clear
+$('btnClear').addEventListener('click', () => {
+  codeInput.value = '';
+  $('charCount').textContent = '0 chars';
+  resultsPane.classList.add('empty');
+  emptyState.innerHTML = '<div class="icon">🔒</div><h2>No secrets found yet</h2><p>Paste code and click Scan</p>';
+  emptyState.style.display = '';
+  findings.style.display = 'none';
+  $('statBar').style.display = 'none';
+});
+
+// Sample code
+$('btnSample').addEventListener('click', () => {
+  codeInput.value = `# WARNING: This is intentionally vulnerable sample code
+# DO NOT use these credentials
+
+import os
+import boto3
+
+# AWS credentials (LEAKED!)
+AWS_ACCESS_KEY_ID = "AKIAEXAMPLE_REPLACE_ME"
+AWS_SECRET_ACCESS_KEY = "EXAMPLE_REPLACE_ME_DUMMY_KEY"
+
+# GitHub token
+GITHUB_TOKEN = "ghp_EXAMPLE_REPLACE_ME_DUMMY"
+
+# Stripe
+stripe.api_key = "sk_test_EXAMPLE_REPLACE_ME_12345"
+
+# Database
+DATABASE_URL = "postgres://admin:password123@db.example.com:5432/production"
+
+# Slack
+SLACK_TOKEN = "xoxb-EXAMPLE-REPLACE-ME-DUMMY"
+slack_webhook = "https://hooks.slack.com/services/EXAMPLE/REPLACE/ME"
+
+# SSH Key
+private_key = """-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfn/yGaTK...
+-----END RSA PRIVATE KEY-----"""
+
+# Google API
+GOOGLE_API_KEY = "AIzaEXAMPLE_REPLACE_ME_DUMMY"
+
+# Password
+DB_PASSWORD = "REPLACE_ME_DUMMY"
+
+# JWT token
+auth_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+
+# .env style
+SENDGRID_API_KEY = "SG.EXAMPLE_REPLACE_ME_DUMMY_KEY"`;
+  $('charCount').textContent = codeInput.value.length + ' chars';
+  $('btnScan').click();
+});
+
+// Drag & drop
+const dropOverlay = $('dropOverlay');
+document.addEventListener('dragover', e => { e.preventDefault(); dropOverlay.classList.add('active'); });
+document.addEventListener('dragleave', e => { if (e.relatedTarget === null) dropOverlay.classList.remove('active'); });
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dropOverlay.classList.remove('active');
+  const file = e.dataTransfer.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      codeInput.value = ev.target.result;
+      $('charCount').textContent = codeInput.value.length + ' chars';
+      $('btnScan').click();
+    };
+    reader.readAsText(file);
+  }
+});
+
+})();
+</script>
+</body>
+</html>
