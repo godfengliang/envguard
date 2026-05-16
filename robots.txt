@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://envguard.surge.sh/sitemap.xml
